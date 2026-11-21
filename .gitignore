@@ -1,0 +1,21 @@
+### `.gitignore` (Prevents `.exe` and Save-File Merge Conflicts)
+```gitignore
+# Compiled binaries and object files
+*.exe
+*.o
+*.out
+build/
+
+# IDE folders
+.vscode/
+.vs/
+*.user
+
+# Ignore local test saves/scores (keep empty data/ folder via .gitkeep)
+data/*.dat
+data/*.csv
+data/*.txt
+
+# Keep report drafts out of code repo
+*.docx
+*.pdf
