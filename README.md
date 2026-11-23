@@ -20,4 +20,4 @@ Programming Fundamentals Semester Project featuring customizable grid sizes, pre
 
 ## Build & Run (Windows)
 ```bat
-build.bat
+build.bat OR build_msvc.bat
