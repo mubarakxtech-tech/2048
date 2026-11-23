@@ -1,20 +1,53 @@
 @echo off
+title Building Dynamic 2048 (MSVC cl.exe - x64)
+cls
+
 echo ===========================================
 echo   Building Dynamic 2048 (MSVC cl.exe - x64)
 echo ===========================================
 
-:: Check if cl compiler is available
-where cl >nul 2>nul
-if %ERRORLEVEL% NEQ 0 (
-    echo [ERROR] MSVC compiler 'cl' was not found in your environment PATH!
-    echo Please run this script from 'x64 Native Tools Command Prompt for VS 2022'.
-    echo.
-    pause
-    exit /b 1
+:: 1. Auto-detect file locations (root vs src/)
+set "MAIN_FILE=main.c"
+if not exist "%MAIN_FILE%" (
+    if exist "src\main.c" set "MAIN_FILE=src\main.c"
 )
 
-:: Compile all source files (main.c, gamelogic.c, filemanager.c, ui_renderer.c)
-cl /nologo /W3 /Zi /EHsc /MD /Iinclude main.c src/gamelogic.c src/filemanager.c src/ui_renderer.c /Fe:2048.exe /link /machine:x64 raylib.lib user32.lib gdi32.lib winmm.lib shell32.lib
+set "GAMELOGIC_FILE=gamelogic.c"
+if not exist "%GAMELOGIC_FILE%" (
+    if exist "src\gamelogic.c" (
+        set "GAMELOGIC_FILE=src\gamelogic.c"
+    ) else if exist "game_logic.c" (
+        set "GAMELOGIC_FILE=game_logic.c"
+    ) else if exist "src\game_logic.c" (
+        set "GAMELOGIC_FILE=src\game_logic.c"
+    )
+)
+
+set "FILEMANAGER_FILE=filemanager.c"
+if not exist "%FILEMANAGER_FILE%" (
+    if exist "src\filemanager.c" (
+        set "FILEMANAGER_FILE=src\filemanager.c"
+    ) else if exist "file_manager.c" (
+        set "FILEMANAGER_FILE=file_manager.c"
+    ) else if exist "src\file_manager.c" (
+        set "FILEMANAGER_FILE=src\file_manager.c"
+    )
+)
+
+set "UI_FILE=ui_renderer.c"
+if not exist "%UI_FILE%" (
+    if exist "src\ui_renderer.c" set "UI_FILE=src\ui_renderer.c"
+)
+
+echo Compiling resolved files:
+echo   Main:       %MAIN_FILE%
+echo   GameLogic:  %GAMELOGIC_FILE%
+echo   FileManager:%FILEMANAGER_FILE%
+echo   UI:         %UI_FILE%
+echo.
+
+:: 2. Compile with MSVC (x64, Dynamic CRT /MD, Suppress sprintf deprecation warnings)
+cl /nologo /W3 /Zi /EHsc /MD /D_CRT_SECURE_NO_WARNINGS /I. /Iinclude %MAIN_FILE% %GAMELOGIC_FILE% %FILEMANAGER_FILE% %UI_FILE% /Fe:2048.exe /link /machine:x64 raylib.lib user32.lib gdi32.lib winmm.lib shell32.lib
 
 if %ERRORLEVEL% EQU 0 (
     echo.

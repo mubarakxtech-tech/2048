@@ -1,58 +1,121 @@
 #include "raylib.h"
 #include "game_types.h"
+#include "game_logic.h"
+#include "file_manager.h"
+#include "ui_renderer.h"
+#include <string.h>
+
+#define SAVE_FILE        "data/savegame.dat"
+#define LEADERBOARD_FILE "data/leaderboard.csv"
+#define SETTINGS_FILE    "data/settings.txt"
 
 int main(void) {
+    // Set viewport resolution to 1920x1080 Full HD (matching Legion 5i display)
     const int screenWidth = 1920;
     const int screenHeight = 1080;
-    InitWindow(screenWidth, screenHeight, "2048");
+
+    InitWindow(screenWidth, screenHeight, "Dynamic 2048 - Programming Fundamentals (CS1002)");
     SetTargetFPS(60);
+    SetExitKey(KEY_NULL); // Prevent ESC from closing window abruptly; use P/ESC for Pause
 
-    int currentScreen = 0;
+    GameScreen currentScreen = SCREEN_MENU;
+    GameState game = {0};
 
+    // Load saved user preferences or fall back to standard 2048 defaults
+    GameConfig config = {"Player", 4, 2, 2, 0.0f, false};
+    LoadDefaultConfig(&config, SETTINGS_FILE);
+
+    ScoreRecord leaderboard[MAX_LEADERBOARD_ENTRIES];
+    int leaderboardCount = LoadLeaderboard(leaderboard, MAX_LEADERBOARD_ENTRIES, LEADERBOARD_FILE);
+    bool scoreSaved = false;
 
     while (!WindowShouldClose()) {
+        // --------------------------------------------------------------------
+        // 1. UPDATE LOGIC & INPUTS
+        // --------------------------------------------------------------------
+        if (currentScreen == SCREEN_GAMEPLAY) {
+            scoreSaved = false;
 
-        if (IsKeyPressed(KEY_ONE))   currentScreen = 0; // Menu Screen
-        if (IsKeyPressed(KEY_TWO))   currentScreen = 1; // Game Screen
-        if (IsKeyPressed(KEY_THREE)) currentScreen = 2; // Settings Screen
-        if (IsKeyPressed(KEY_FOUR))  currentScreen = 3; // Game Over Screen
-
-        BeginDrawing();
-            ClearBackground(RAYWHITE);
-
-            switch (currentScreen) {
-                case 0: // Menu Screen
-                    DrawText("DYNAMIC 2048 - MAIN MENU", 400, 300, 81, DARKBLUE);
-                    DrawText("Press [2] to Start Game", 700, 500, 36, DARKGRAY);
-                    DrawText("Press [3] for Settings", 700, 560, 36, DARKGRAY);
-                    DrawText("Press [ESC] to Exit", 700, 620, 36, RED);
-                    break;
-
-                case 1: // Game Screen (Dummy 4x4 Grid Placeholder for Dev 2 UI)
-                    DrawText("GAMEPLAY SCREEN", 700, 50, 54, MAROON);
-                    DrawText("Press [1] for Menu | [4] for Game Over", 600, 520, 38, DARKGRAY);
-                    // UI grid rendering will be called here via DrawGameUI()
-                    break;
-
-                case 2: // Settings Screen
-                    DrawText("SETTINGS SCREEN", 700, 150, 54, PURPLE);
-                    DrawText("Grid Size Selection (3x3 - 8x8)", 700, 420, 36, DARKGRAY);
-                    DrawText("Press [1] to Return to Menu", 700, 600, 36, DARKGRAY);
-                    break;
-
-                case 3: // Game Over Screen
-                    DrawText("GAME OVER!", 750, 420, 54, RED);
-                    DrawText("Press [1] to Return to Main Menu", 650, 600, 36, DARKGRAY);
-                    break;
-
-                default:
-                    break;
+            // Frame-independent countdown timer
+            if (game.timeLimit > 0.0f && !game.isGameOver) {
+                game.timeRemaining -= GetFrameTime();
+                if (game.timeRemaining <= 0.0f) {
+                    game.timeRemaining = 0.0f;
+                    game.isGameOver = true;
+                }
             }
+
+            // Keyboard movement & shortcuts
+            if (!game.isGameOver) {
+                if (IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W))       MoveTiles(&game, DIR_UP);
+                else if (IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_S))  MoveTiles(&game, DIR_DOWN);
+                else if (IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_A))  MoveTiles(&game, DIR_LEFT);
+                else if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D)) MoveTiles(&game, DIR_RIGHT);
+                else if (IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_U))     UndoLastMove(&game);
+                else if (IsKeyPressed(KEY_P) || IsKeyPressed(KEY_ESCAPE)) {
+                    currentScreen = SCREEN_PAUSED;
+                }
+            }
+
+            // Transition to Game Over when board locks or timer expires
+            if (game.isGameOver) {
+                DeleteSavedGame(SAVE_FILE);
+                if (!scoreSaved) {
+                    ScoreRecord rec;
+                    strcpy(rec.playerName, config.playerName);
+                    rec.gridSize = game.gridSize;
+                    rec.baseValue = game.baseValue;
+                    rec.isEndless = game.isEndless;
+                    rec.score = game.score;
+                    rec.maxTile = game.maxTile;
+                    rec.timeLimit = game.timeLimit;
+
+                    SaveScoreToLeaderboard(rec, LEADERBOARD_FILE);
+                    leaderboardCount = LoadLeaderboard(leaderboard, MAX_LEADERBOARD_ENTRIES, LEADERBOARD_FILE);
+                    scoreSaved = true;
+                }
+                currentScreen = SCREEN_GAMEOVER;
+            }
+        }
+
+        // --------------------------------------------------------------------
+        // 2. RENDER CURRENT SCREEN
+        // --------------------------------------------------------------------
+        BeginDrawing();
+        ClearBackground((Color){250, 248, 239, 255}); // Classic 2048 warm cream background
+
+        switch (currentScreen) {
+            case SCREEN_MENU:
+                DrawMenuScreen(&currentScreen, HasSavedGame(SAVE_FILE), &game);
+                break;
+
+            case SCREEN_CONFIG:
+                DrawConfigScreen(&currentScreen, &config, &game);
+                break;
+
+            case SCREEN_GAMEPLAY:
+                DrawGameplayScreen(&currentScreen, &game);
+                break;
+
+            case SCREEN_PAUSED:
+                DrawGameplayScreen(&currentScreen, &game); // Draw frozen board underneath
+                DrawPauseOverlay(&currentScreen, &game);
+                break;
+
+            case SCREEN_GAMEOVER:
+                DrawGameOverScreen(&currentScreen, &game, &scoreSaved);
+                break;
+
+            case SCREEN_LEADERBOARD:
+                DrawLeaderboardScreen(&currentScreen, leaderboard, leaderboardCount);
+                break;
+        }
 
         EndDrawing();
     }
 
+    // Clean up heap memory and close Raylib window cleanly
+    FreeGame(&game);
     CloseWindow();
-
     return 0;
 }

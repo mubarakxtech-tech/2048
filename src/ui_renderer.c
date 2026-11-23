@@ -1,9 +1,12 @@
+#include "raylib.h"
+#include "game_types.h"
+#include "game_logic.h"
+#include "file_manager.h"
 #include "ui_renderer.h"
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
-// Color palette for 2048 tiles
+// Color palette matching classic 2048 styling
 Color GetTileColor(int value) {
     switch (value) {
         case 2:    return (Color){238, 228, 218, 255};
@@ -17,312 +20,262 @@ Color GetTileColor(int value) {
         case 512:  return (Color){237, 200, 80, 255};
         case 1024: return (Color){237, 197, 63, 255};
         case 2048: return (Color){237, 194, 46, 255};
-        default:   return (Color){60, 58, 50, 255}; // > 2048 tiles
+        default:   return (value > 2048) ? (Color){60, 58, 50, 255} : (Color){205, 193, 180, 255};
     }
 }
 
-// ----------------------------------------------------------------------------
 // 1. MAIN MENU SCREEN
-// ----------------------------------------------------------------------------
-void DrawMenuScreen(GameScreen *currentScreen, bool hasSaveGame, GameState *game) {
+void DrawMenuScreen(GameScreen *currentScreen, bool hasSavedGame, GameState *game) {
+    int sw = GetScreenWidth();
+
+    DrawText("DYNAMIC 2048", sw/2 - MeasureText("DYNAMIC 2048", 60)/2, 200, 60, (Color){119, 110, 101, 255});
+    DrawText("Programming Fundamentals - C + Raylib", sw/2 - MeasureText("Programming Fundamentals - C + Raylib", 20)/2, 270, 20, (Color){143, 131, 118, 255});
+
+    Rectangle btnNew      = {sw/2 - 150, 350, 300, 50};
+    Rectangle btnResume   = {sw/2 - 150, 420, 300, 50};
+    Rectangle btnLeader   = {sw/2 - 150, 490, 300, 50};
+    Rectangle btnSettings = {sw/2 - 150, 560, 300, 50};
+    Rectangle btnExit     = {sw/2 - 150, 630, 300, 50};
+
     Vector2 mouse = GetMousePosition();
 
-    // Title
-    DrawText("DYNAMIC 2048", 710, 200, 70, (Color){119, 110, 101, 255});
-    DrawText("Programming Fundamentals - FAST NUCES", 710, 280, 24, (Color){143, 131, 117, 255});
-
-    // Button Dimensions
-    Rectangle btnNew   = { 760, 360, 400, 60 };
-    Rectangle btnResume= { 760, 440, 400, 60 };
-    Rectangle btnConfig= { 760, 520, 400, 60 };
-    Rectangle btnLeader= { 760, 600, 400, 60 };
-    Rectangle btnExit  = { 760, 680, 400, 60 };
-
-    // New Game Button
-    bool hoverNew = CheckCollisionPointRec(mouse, btnNew);
-    DrawRectangleRec(btnNew, hoverNew ? (Color){242, 177, 121, 255} : (Color){238, 228, 218, 255});
-    DrawText("NEW GAME", 880, 375, 28, (Color){119, 110, 101, 255});
-    if (hoverNew && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    // New Game
+    DrawRectangleRec(btnNew, CheckCollisionPointRec(mouse, btnNew) ? LIGHTGRAY : RAYWHITE);
+    DrawRectangleLinesEx(btnNew, 2, (Color){119, 110, 101, 255});
+    DrawText("New Game", (int)(btnNew.x + 150 - MeasureText("New Game", 24)/2), (int)(btnNew.y + 13), 24, (Color){119, 110, 101, 255});
+    if (CheckCollisionPointRec(mouse, btnNew) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         GameConfig defaultConfig = {"Player", 4, 2, 2, 0.0f, false};
         LoadDefaultConfig(&defaultConfig, "data/settings.txt");
         InitGame(game, defaultConfig);
         *currentScreen = SCREEN_GAMEPLAY;
     }
 
-    // Resume Button (Enabled only if save game exists)
-    if (hasSaveGame) {
-        bool hoverResume = CheckCollisionPointRec(mouse, btnResume);
-        DrawRectangleRec(btnResume, hoverResume ? (Color){242, 177, 121, 255} : (Color){238, 228, 218, 255});
-        DrawText("RESUME GAME", 860, 455, 28, (Color){119, 110, 101, 255});
-        if (hoverResume && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-            if (LoadGameBinary(game, "data/savegame.dat")) {
-                *currentScreen = SCREEN_GAMEPLAY;
-            }
+    // Resume Game
+    Color resumeColor = hasSavedGame ? ((CheckCollisionPointRec(mouse, btnResume)) ? LIGHTGRAY : RAYWHITE) : (Color){230, 230, 230, 255};
+    DrawRectangleRec(btnResume, resumeColor);
+    DrawRectangleLinesEx(btnResume, 2, hasSavedGame ? (Color){119, 110, 101, 255} : GRAY);
+    DrawText("Resume Game", (int)(btnResume.x + 150 - MeasureText("Resume Game", 24)/2), (int)(btnResume.y + 13), 24, hasSavedGame ? (Color){119, 110, 101, 255} : GRAY);
+    if (hasSavedGame && CheckCollisionPointRec(mouse, btnResume) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        if (LoadGameBinary(game, "data/savegame.dat")) {
+            *currentScreen = SCREEN_GAMEPLAY;
         }
-    } else {
-        DrawRectangleRec(btnResume, (Color){200, 195, 185, 255});
-        DrawText("RESUME GAME (No Save)", 800, 455, 24, (Color){150, 145, 135, 255});
     }
 
-    // Settings Button
-    bool hoverConfig = CheckCollisionPointRec(mouse, btnConfig);
-    DrawRectangleRec(btnConfig, hoverConfig ? (Color){242, 177, 121, 255} : (Color){238, 228, 218, 255});
-    DrawText("SETTINGS", 890, 535, 28, (Color){119, 110, 101, 255});
-    if (hoverConfig && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-        *currentScreen = SCREEN_CONFIG;
-    }
-
-    // Leaderboard Button
-    bool hoverLeader = CheckCollisionPointRec(mouse, btnLeader);
-    DrawRectangleRec(btnLeader, hoverLeader ? (Color){242, 177, 121, 255} : (Color){238, 228, 218, 255});
-    DrawText("LEADERBOARD", 855, 615, 28, (Color){119, 110, 101, 255});
-    if (hoverLeader && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    // Leaderboard
+    DrawRectangleRec(btnLeader, CheckCollisionPointRec(mouse, btnLeader) ? LIGHTGRAY : RAYWHITE);
+    DrawRectangleLinesEx(btnLeader, 2, (Color){119, 110, 101, 255});
+    DrawText("Leaderboard", (int)(btnLeader.x + 150 - MeasureText("Leaderboard", 24)/2), (int)(btnLeader.y + 13), 24, (Color){119, 110, 101, 255});
+    if (CheckCollisionPointRec(mouse, btnLeader) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         *currentScreen = SCREEN_LEADERBOARD;
     }
 
-    // Exit Button
-    bool hoverExit = CheckCollisionPointRec(mouse, btnExit);
-    DrawRectangleRec(btnExit, hoverExit ? (Color){242, 177, 121, 255} : (Color){238, 228, 218, 255});
-    DrawText("EXIT", 920, 695, 28, (Color){119, 110, 101, 255});
-    if (hoverExit && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    // Settings
+    DrawRectangleRec(btnSettings, CheckCollisionPointRec(mouse, btnSettings) ? LIGHTGRAY : RAYWHITE);
+    DrawRectangleLinesEx(btnSettings, 2, (Color){119, 110, 101, 255});
+    DrawText("Settings", (int)(btnSettings.x + 150 - MeasureText("Settings", 24)/2), (int)(btnSettings.y + 13), 24, (Color){119, 110, 101, 255});
+    if (CheckCollisionPointRec(mouse, btnSettings) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        *currentScreen = SCREEN_CONFIG;
+    }
+
+    // Exit
+    DrawRectangleRec(btnExit, CheckCollisionPointRec(mouse, btnExit) ? LIGHTGRAY : RAYWHITE);
+    DrawRectangleLinesEx(btnExit, 2, (Color){119, 110, 101, 255});
+    DrawText("Exit", (int)(btnExit.x + 150 - MeasureText("Exit", 24)/2), (int)(btnExit.y + 13), 24, (Color){119, 110, 101, 255});
+    if (CheckCollisionPointRec(mouse, btnExit) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         CloseWindow();
     }
 }
 
-// ----------------------------------------------------------------------------
-// 2. CONFIGURATION / SETTINGS SCREEN
-// ----------------------------------------------------------------------------
+// 2. CONFIG / SETTINGS SCREEN
 void DrawConfigScreen(GameScreen *currentScreen, GameConfig *config, GameState *game) {
+    int sw = GetScreenWidth();
+
+    DrawText("SETTINGS", sw/2 - MeasureText("SETTINGS", 50)/2, 150, 50, (Color){119, 110, 101, 255});
+
+    char gridStr[64];
+    sprintf(gridStr, "Grid Size: %dx%d (Press UP/DOWN to adjust)", config->gridSize, config->gridSize);
+    DrawText(gridStr, sw/2 - MeasureText(gridStr, 24)/2, 300, 24, (Color){119, 110, 101, 255});
+
+    if (IsKeyPressed(KEY_UP) && config->gridSize < 8) config->gridSize++;
+    if (IsKeyPressed(KEY_DOWN) && config->gridSize > 3) config->gridSize--;
+
+    Rectangle btnSave = {sw/2 - 100, 500, 200, 50};
     Vector2 mouse = GetMousePosition();
 
-    DrawText("SETTINGS", 830, 150, 60, (Color){119, 110, 101, 255});
+    DrawRectangleRec(btnSave, CheckCollisionPointRec(mouse, btnSave) ? LIGHTGRAY : RAYWHITE);
+    DrawRectangleLinesEx(btnSave, 2, (Color){119, 110, 101, 255});
+    DrawText("Save & Back", (int)(btnSave.x + 100 - MeasureText("Save & Back", 20)/2), (int)(btnSave.y + 15), 20, (Color){119, 110, 101, 255});
 
-    // Grid Size Options (3x3 to 8x8)
-    DrawText("Grid Size:", 650, 280, 28, (Color){119, 110, 101, 255});
-    for (int size = 3; size <= 8; size++) {
-        Rectangle sizeBtn = { 800 + (size - 3) * 80, 270, 60, 50 };
-        bool selected = (config->gridSize == size);
-        bool hover = CheckCollisionPointRec(mouse, sizeBtn);
-
-        Color btnCol = selected ? (Color){242, 177, 121, 255} : (hover ? (Color){238, 228, 218, 255} : (Color){205, 193, 180, 255});
-        DrawRectangleRec(sizeBtn, btnCol);
-
-        char label[8];
-        snprintf(label, sizeof(label), "%dx%d", size, size);
-        DrawText(label, sizeBtn.x + 10, sizeBtn.y + 12, 22, (Color){119, 110, 101, 255});
-
-        if (hover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-            config->gridSize = size;
-        }
-    }
-
-    // Mode Option (Standard vs Endless)
-    DrawText("Game Mode:", 650, 380, 28, (Color){119, 110, 101, 255});
-    Rectangle btnStd = { 800, 370, 180, 50 };
-    Rectangle btnEnd = { 1000, 370, 180, 50 };
-
-    bool selStd = !config->isEndless;
-    bool selEnd = config->isEndless;
-
-    DrawRectangleRec(btnStd, selStd ? (Color){242, 177, 121, 255} : (Color){205, 193, 180, 255});
-    DrawText("Target (2048)", btnStd.x + 20, btnStd.y + 12, 20, (Color){119, 110, 101, 255});
-    if (CheckCollisionPointRec(mouse, btnStd) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-        config->isEndless = false;
-    }
-
-    DrawRectangleRec(btnEnd, selEnd ? (Color){242, 177, 121, 255} : (Color){205, 193, 180, 255});
-    DrawText("Endless Mode", btnEnd.x + 20, btnEnd.y + 12, 20, (Color){119, 110, 101, 255});
-    if (CheckCollisionPointRec(mouse, btnEnd) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-        config->isEndless = true;
-    }
-
-    // Save & Back Buttons
-    Rectangle btnSave = { 760, 520, 400, 60 };
-    Rectangle btnBack = { 760, 600, 400, 60 };
-
-    bool hoverSave = CheckCollisionPointRec(mouse, btnSave);
-    DrawRectangleRec(btnSave, hoverSave ? (Color){242, 177, 121, 255} : (Color){238, 228, 218, 255});
-    DrawText("SAVE & START", 855, 535, 28, (Color){119, 110, 101, 255});
-    if (hoverSave && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    if (CheckCollisionPointRec(mouse, btnSave) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         SaveDefaultConfig(config, "data/settings.txt");
-        InitGame(game, *config);
-        *currentScreen = SCREEN_GAMEPLAY;
-    }
-
-    bool hoverBack = CheckCollisionPointRec(mouse, btnBack);
-    DrawRectangleRec(btnBack, hoverBack ? (Color){242, 177, 121, 255} : (Color){238, 228, 218, 255});
-    DrawText("BACK TO MENU", 850, 615, 28, (Color){119, 110, 101, 255});
-    if (hoverBack && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         *currentScreen = SCREEN_MENU;
     }
 }
 
-// ----------------------------------------------------------------------------
-// 3. ACTIVE GAMEPLAY SCREEN (1920x1080 Centered Grid)
-// ----------------------------------------------------------------------------
+// 3. GAMEPLAY SCREEN
 void DrawGameplayScreen(GameScreen *currentScreen, GameState *game) {
-    if (game == NULL || game->grid == NULL) return;
+    int sw = GetScreenWidth();
+    int sh = GetScreenHeight();
 
-    // Header Info
-    DrawText("DYNAMIC 2048", 100, 50, 50, (Color){119, 110, 101, 255});
+    // Header Title & Scoreboard
+    DrawText("2048", sw/2 - 350, 60, 70, (Color){119, 110, 101, 255});
 
-    char scoreStr[64];
-    snprintf(scoreStr, sizeof(scoreStr), "SCORE: %d", game->score);
-    DrawRectangle(1350, 40, 200, 70, (Color){187, 173, 160, 255});
-    DrawText(scoreStr, 1370, 60, 26, WHITE);
+    char scoreText[32], maxTileText[32];
+    sprintf(scoreText, "SCORE: %d", game->score);
+    sprintf(maxTileText, "BEST: %d", game->maxTile);
 
-    char maxTileStr[64];
-    snprintf(maxTileStr, sizeof(maxTileStr), "BEST: %d", game->maxTile);
-    DrawRectangle(1580, 40, 200, 70, (Color){187, 173, 160, 255});
-    DrawText(maxTileStr, 1600, 60, 26, WHITE);
+    DrawRectangle(sw/2 + 100, 60, 150, 60, (Color){187, 173, 160, 255});
+    DrawText(scoreText, sw/2 + 110, 80, 20, RAYWHITE);
 
-    DrawText("Controls: [W/A/S/D] Move | [Z] Undo | [P/ESC] Pause", 100, 120, 22, (Color){143, 131, 117, 255});
+    DrawRectangle(sw/2 + 270, 60, 150, 60, (Color){187, 173, 160, 255});
+    DrawText(maxTileText, sw/2 + 280, 80, 20, RAYWHITE);
 
-    // Grid Dimensions Calculation
+    // Calculate dynamic centering
     int n = game->gridSize;
-    int tileSize = (n <= 4) ? 100 : ((n <= 6) ? 80 : 65);
+    int tileSize = (n <= 4) ? 110 : (450 / n);
     int gap = 12;
+    int boardWidth = n * tileSize + (n + 1) * gap;
 
-    int totalBoardSize = n * tileSize + (n + 1) * gap;
-    int startX = (1920 - totalBoardSize) / 2;
-    int startY = (1080 - totalBoardSize) / 2 + 30;
+    int startX = sw/2 - boardWidth/2;
+    int startY = sh/2 - boardWidth/2 + 20;
 
-    // Outer Board Container
-    DrawRectangle(startX, startY, totalBoardSize, totalBoardSize, (Color){187, 173, 160, 255});
+    // Background Board Container
+    DrawRectangle(startX, startY, boardWidth, boardWidth, (Color){187, 173, 160, 255});
 
-    // Render Board Grid & Tiles
+    // Render Tiles
     for (int r = 0; r < n; r++) {
         for (int c = 0; c < n; c++) {
+            int val = GetTileAt(game, r, c);
             int tileX = startX + gap + c * (tileSize + gap);
             int tileY = startY + gap + r * (tileSize + gap);
 
-            int val = GetTileAt(game, r, c);
-
-            // Empty slot background
-            DrawRectangle(tileX, tileY, tileSize, tileSize, (Color){205, 193, 180, 255});
+            DrawRectangle(tileX, tileY, tileSize, tileSize, GetTileColor(val));
 
             if (val > 0) {
-                DrawRectangle(tileX, tileY, tileSize, tileSize, GetTileColor(val));
-
                 char valStr[16];
-                snprintf(valStr, sizeof(valStr), "%d", val);
-                int fontSize = (val < 100) ? 36 : ((val < 1000) ? 28 : 22);
-                Color textCol = (val <= 4) ? (Color){119, 110, 101, 255} : WHITE;
-
-                int textWidth = MeasureText(valStr, fontSize);
-                DrawText(valStr, tileX + (tileSize - textWidth) / 2, tileY + (tileSize - fontSize) / 2, fontSize, textCol);
+                sprintf(valStr, "%d", val);
+                int fontSize = (tileSize > 80) ? 36 : 24;
+                int textW = MeasureText(valStr, fontSize);
+                Color fontColor = (val <= 4) ? (Color){119, 110, 101, 255} : RAYWHITE;
+                DrawText(valStr, tileX + tileSize/2 - textW/2, tileY + tileSize/2 - fontSize/2, fontSize, fontColor);
             }
         }
     }
+
+    // Instructions Footer
+    DrawText("Controls: [W/A/S/D or Arrows] Move  |  [Z] Undo  |  [P / ESC] Pause", sw/2 - MeasureText("Controls: [W/A/S/D or Arrows] Move  |  [Z] Undo  |  [P / ESC] Pause", 20)/2, sh - 60, 20, (Color){119, 110, 101, 255});
 }
 
-// ----------------------------------------------------------------------------
 // 4. PAUSE OVERLAY
-// ----------------------------------------------------------------------------
 void DrawPauseOverlay(GameScreen *currentScreen, GameState *game) {
+    int sw = GetScreenWidth();
+    int sh = GetScreenHeight();
+
+    DrawRectangle(0, 0, sw, sh, (Color){0, 0, 0, 150});
+
+    DrawText("GAME PAUSED", sw/2 - MeasureText("GAME PAUSED", 50)/2, sh/2 - 180, 50, RAYWHITE);
+
+    Rectangle btnResume = {sw/2 - 120, sh/2 - 60, 240, 50};
+    Rectangle btnSave   = {sw/2 - 120, sh/2 + 10, 240, 50};
+    Rectangle btnMenu   = {sw/2 - 120, sh/2 + 80, 240, 50};
     Vector2 mouse = GetMousePosition();
 
-    // Dark semi-transparent background overlay
-    DrawRectangle(0, 0, 1920, 1080, (Color){0, 0, 0, 150});
-
-    DrawText("GAME PAUSED", 780, 320, 60, WHITE);
-
-    Rectangle btnResume = { 760, 440, 400, 60 };
-    Rectangle btnSave   = { 760, 520, 400, 60 };
-    Rectangle btnQuit   = { 760, 600, 400, 60 };
-
-    bool hResume = CheckCollisionPointRec(mouse, btnResume);
-    DrawRectangleRec(btnResume, hResume ? (Color){242, 177, 121, 255} : (Color){238, 228, 218, 255});
-    DrawText("RESUME", 900, 455, 28, (Color){119, 110, 101, 255});
-    if (hResume && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    // Resume
+    DrawRectangleRec(btnResume, CheckCollisionPointRec(mouse, btnResume) ? LIGHTGRAY : RAYWHITE);
+    DrawText("Resume", (int)(btnResume.x + 120 - MeasureText("Resume", 22)/2), (int)(btnResume.y + 14), 22, (Color){119, 110, 101, 255});
+    if (CheckCollisionPointRec(mouse, btnResume) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         *currentScreen = SCREEN_GAMEPLAY;
     }
 
-    bool hSave = CheckCollisionPointRec(mouse, btnSave);
-    DrawRectangleRec(btnSave, hSave ? (Color){242, 177, 121, 255} : (Color){238, 228, 218, 255});
-    DrawText("SAVE & EXIT", 870, 535, 28, (Color){119, 110, 101, 255});
-    if (hSave && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    // Save Game
+    DrawRectangleRec(btnSave, CheckCollisionPointRec(mouse, btnSave) ? LIGHTGRAY : RAYWHITE);
+    DrawText("Save & Exit", (int)(btnSave.x + 120 - MeasureText("Save & Exit", 22)/2), (int)(btnSave.y + 14), 22, (Color){119, 110, 101, 255});
+    if (CheckCollisionPointRec(mouse, btnSave) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         SaveGameBinary(game, "data/savegame.dat");
         *currentScreen = SCREEN_MENU;
     }
 
-    bool hQuit = CheckCollisionPointRec(mouse, btnQuit);
-    DrawRectangleRec(btnQuit, hQuit ? (Color){242, 177, 121, 255} : (Color){238, 228, 218, 255});
-    DrawText("QUIT TO MENU", 860, 615, 28, (Color){119, 110, 101, 255});
-    if (hQuit && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    // Return to Menu
+    DrawRectangleRec(btnMenu, CheckCollisionPointRec(mouse, btnMenu) ? LIGHTGRAY : RAYWHITE);
+    DrawText("Main Menu", (int)(btnMenu.x + 120 - MeasureText("Main Menu", 22)/2), (int)(btnMenu.y + 14), 22, (Color){119, 110, 101, 255});
+    if (CheckCollisionPointRec(mouse, btnMenu) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         *currentScreen = SCREEN_MENU;
     }
 }
 
-// ----------------------------------------------------------------------------
-// 5. GAME OVER / VICTORY SCREEN
-// ----------------------------------------------------------------------------
+// 5. GAME OVER SCREEN
 void DrawGameOverScreen(GameScreen *currentScreen, GameState *game, bool *scoreSaved) {
-    Vector2 mouse = GetMousePosition();
+    int sw = GetScreenWidth();
+    int sh = GetScreenHeight();
 
-    DrawRectangle(0, 0, 1920, 1080, (Color){250, 248, 239, 230});
+    DrawRectangle(0, 0, sw, sh, (Color){238, 228, 218, 220});
 
-    if (game->targetReached) {
-        DrawText("YOU WIN! 2048 REACHED!", 600, 300, 55, (Color){237, 194, 46, 255});
-    } else {
-        DrawText("GAME OVER!", 780, 300, 60, (Color){119, 110, 101, 255});
-    }
+    DrawText("GAME OVER!", sw/2 - MeasureText("GAME OVER!", 60)/2, sh/2 - 150, 60, (Color){119, 110, 101, 255});
 
     char finalScoreStr[64];
-    snprintf(finalScoreStr, sizeof(finalScoreStr), "Final Score: %d", game->score);
-    DrawText(finalScoreStr, 830, 400, 32, (Color){143, 131, 117, 255});
+    sprintf(finalScoreStr, "Final Score: %d  |  Highest Tile: %d", game->score, game->maxTile);
+    DrawText(finalScoreStr, sw/2 - MeasureText(finalScoreStr, 24)/2, sh/2 - 50, 24, (Color){119, 110, 101, 255});
 
-    Rectangle btnMenu = { 760, 520, 400, 60 };
-    bool hMenu = CheckCollisionPointRec(mouse, btnMenu);
-    DrawRectangleRec(btnMenu, hMenu ? (Color){242, 177, 121, 255} : (Color){238, 228, 218, 255});
-    DrawText("MAIN MENU", 880, 535, 28, (Color){119, 110, 101, 255});
+    Rectangle btnMenu = {sw/2 - 120, sh/2 + 40, 240, 50};
+    Vector2 mouse = GetMousePosition();
 
-    if (hMenu && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    DrawRectangleRec(btnMenu, CheckCollisionPointRec(mouse, btnMenu) ? LIGHTGRAY : RAYWHITE);
+    DrawRectangleLinesEx(btnMenu, 2, (Color){119, 110, 101, 255});
+    DrawText("Main Menu", (int)(btnMenu.x + 120 - MeasureText("Main Menu", 22)/2), (int)(btnMenu.y + 14), 22, (Color){119, 110, 101, 255});
+
+    if (CheckCollisionPointRec(mouse, btnMenu) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         *currentScreen = SCREEN_MENU;
     }
 }
 
-// ----------------------------------------------------------------------------
-// 6. LEADERBOARD SCREEN
-// ----------------------------------------------------------------------------
-void DrawLeaderboardScreen(GameScreen *currentScreen, const ScoreRecord leaderboard[], int recordCount) {
-    Vector2 mouse = GetMousePosition();
+// 6. LEADERBOARD SCREEN - Explicit Column X Positions
+void DrawLeaderboardScreen(GameScreen *currentScreen, ScoreRecord leaderboard[], int recordCount) {
+    int sw = GetScreenWidth();
+    int sh = GetScreenHeight();
 
-    DrawText("TOP HIGH SCORES", 720, 120, 50, (Color){119, 110, 101, 255});
+    DrawText("TOP HIGH SCORES", sw/2 - MeasureText("TOP HIGH SCORES", 50)/2, 100, 50, (Color){119, 110, 101, 255});
 
-    // Table Headers
-    DrawRectangle(560, 220, 800, 40, (Color){187, 173, 160, 255});
-    DrawText("Rank", 580, 230, 20, WHITE);
-    DrawText("Player", 680, 230, 20, WHITE);
-    DrawText("Grid", 880, 230, 20, WHITE);
-    DrawText("Max Tile", 1000, 230, 20, WHITE);
-    DrawText("Score", 1200, 230, 20, WHITE);
+    int startY = 220;
+    int colRank  = sw/2 - 450;
+    int colName  = sw/2 - 320;
+    int colGrid  = sw/2 + 50;
+    int colScore = sw/2 + 200;
+    int colMax   = sw/2 + 370;
 
-    int maxDisplay = (recordCount > 10) ? 10 : recordCount;
-    for (int i = 0; i < maxDisplay; i++) {
-        int y = 270 + i * 42;
-        Color rowBg = (i % 2 == 0) ? (Color){238, 228, 218, 255} : (Color){250, 248, 239, 255};
-        DrawRectangle(560, y, 800, 38, rowBg);
+    // Headers
+    DrawText("Rank", colRank, startY, 22, (Color){143, 131, 118, 255});
+    DrawText("Player Name", colName, startY, 22, (Color){143, 131, 118, 255});
+    DrawText("Grid", colGrid, startY, 22, (Color){143, 131, 118, 255});
+    DrawText("Score", colScore, startY, 22, (Color){143, 131, 118, 255});
+    DrawText("Max Tile", colMax, startY, 22, (Color){143, 131, 118, 255});
 
-        char rankStr[8], gridStr[16], tileStr[16], scoreStr[32];
-        snprintf(rankStr, sizeof(rankStr), "#%d", i + 1);
-        snprintf(gridStr, sizeof(gridStr), "%dx%d", leaderboard[i].gridSize, leaderboard[i].gridSize);
-        snprintf(tileStr, sizeof(tileStr), "%d", leaderboard[i].maxTile);
-        snprintf(scoreStr, sizeof(scoreStr), "%d", leaderboard[i].score);
+    DrawLine(colRank, startY + 30, colMax + 100, startY + 30, (Color){187, 173, 160, 255});
 
-        DrawText(rankStr, 580, y + 8, 20, (Color){119, 110, 101, 255});
-        DrawText(leaderboard[i].playerName, 680, y + 8, 20, (Color){119, 110, 101, 255});
-        DrawText(gridStr, 880, y + 8, 20, (Color){119, 110, 101, 255});
-        DrawText(tileStr, 1000, y + 8, 20, (Color){119, 110, 101, 255});
-        DrawText(scoreStr, 1200, y + 8, 20, (Color){119, 110, 101, 255});
+    // Rows
+    for (int i = 0; i < recordCount && i < 10; i++) {
+        int rowY = startY + 50 + (i * 38);
+        char rankStr[16], gridStr[16], scoreStr[32], maxTileStr[32];
+
+        sprintf(rankStr, "#%d", i + 1);
+        sprintf(gridStr, "%dx%d", leaderboard[i].gridSize, leaderboard[i].gridSize);
+        sprintf(scoreStr, "%d", leaderboard[i].score);
+        sprintf(maxTileStr, "%d", leaderboard[i].maxTile);
+
+        DrawText(rankStr, colRank, rowY, 20, (Color){119, 110, 101, 255});
+        DrawText(leaderboard[i].playerName, colName, rowY, 20, (Color){119, 110, 101, 255});
+        DrawText(gridStr, colGrid, rowY, 20, (Color){119, 110, 101, 255});
+        DrawText(scoreStr, colScore, rowY, 20, (Color){119, 110, 101, 255});
+        DrawText(maxTileStr, colMax, rowY, 20, (Color){119, 110, 101, 255});
     }
 
-    Rectangle btnBack = { 760, 720, 400, 60 };
-    bool hBack = CheckCollisionPointRec(mouse, btnBack);
-    DrawRectangleRec(btnBack, hBack ? (Color){242, 177, 121, 255} : (Color){238, 228, 218, 255});
-    DrawText("BACK TO MENU", 850, 735, 28, (Color){119, 110, 101, 255});
+    Rectangle btnBack = {sw/2 - 100, sh - 120, 200, 50};
+    Vector2 mouse = GetMousePosition();
 
-    if (hBack && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    DrawRectangleRec(btnBack, CheckCollisionPointRec(mouse, btnBack) ? LIGHTGRAY : RAYWHITE);
+    DrawRectangleLinesEx(btnBack, 2, (Color){119, 110, 101, 255});
+    DrawText("Back to Menu", (int)(btnBack.x + 100 - MeasureText("Back to Menu", 20)/2), (int)(btnBack.y + 15), 20, (Color){119, 110, 101, 255});
+
+    if (CheckCollisionPointRec(mouse, btnBack) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         *currentScreen = SCREEN_MENU;
     }
 }
